@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import YahooFinance from 'yahoo-finance2';
-import { quote } from 'yahoo-finance2/modules';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
