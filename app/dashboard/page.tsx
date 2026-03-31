@@ -31,13 +31,19 @@ export default function Dashboard() {
     }).format(balance);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-black">
-            <h1 className="text-2xl font-bold mb-4 text-center text-green-500">
-                Dashboard - Welcome {ticker}
-            </h1>
-            <p>Balance: {formattedBalance}</p>
+        <div className="min-h-screen bg-black text-white p-6 md:p-10">
+            <header className="mb-8">
+                <h1 className="text-3xl font-bold text-green-500">Dashboard - Welcome {ticker}</h1>
+                <p className="mt-2 text-gray-300">Balance: {formattedBalance}</p>
+            </header>
 
-            <Search setTicker={setTicker} />
+            <main className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <section className="min-h-[420px] rounded-xl border border-gray-800 bg-gray-950/50 p-4" />
+
+                <section className="rounded-xl border border-gray-800 bg-gray-950/50 p-4">
+                    <Search setTicker={setTicker} />
+                </section>
+            </main>
         </div>
     );
 }
