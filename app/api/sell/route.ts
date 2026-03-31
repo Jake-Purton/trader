@@ -13,47 +13,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { ticker, quantity } = await req.json();
+    const body = await req.json();
+    const ticker = String(body?.ticker ?? '').trim().toUpperCase();
+    const quantity = Number(body?.quantity);
 
-    if (!ticker || !quantity || quantity <= 0) {
+    if (!ticker || !Number.isFinite(quantity) || quantity <= 0) {
       return NextResponse.json(
         { error: 'Invalid ticker or quantity' },
         { status: 400 }
       );
     }
 
-    // Get current price from Yahoo Finance
-    const yf = new YahooFinance(); 
-    const quotes = await yf.quote(ticker.toUpperCase());
+    // Get current quote from Yahoo Finance and convert to USD when needed.
+    const yf = new YahooFinance();
+    const quotes = await yf.quote(ticker);
     const quote = Array.isArray(quotes) ? quotes[0] : quotes;
-
-    let currentPrice = quote?.regularMarketPrice;
+    const rawPrice = quote?.regularMarketPrice;
     const currency = quote?.currency || 'USD';
 
-    if (!currentPrice) {
+    if (typeof rawPrice !== 'number') {
       return NextResponse.json(
         { error: 'Unable to fetch current price' },
-        { status: 500 }
+        { status: 502 }
       );
     }
 
-    // Convert to USD if necessary.
-    let priceInUSD = currentPrice;
+    let priceInUSD = rawPrice;
     let exchangeRateToUSD = 1;
     if (currency !== 'USD') {
       let fxBaseCurrency = currency;
-      let priceInBaseCurrency = currentPrice;
+      let priceInBaseCurrency = rawPrice;
 
       if (currency === 'GBp') {
         fxBaseCurrency = 'GBP';
-        priceInBaseCurrency = currentPrice / 100;
+        priceInBaseCurrency = rawPrice / 100;
       }
 
+      // Prefer direct pair (e.g. GBPUSD=X => USD per GBP).
       let fxQuotes = await yf.quote(`${fxBaseCurrency}USD=X`);
       let fxQuote = Array.isArray(fxQuotes) ? fxQuotes[0] : fxQuotes;
       let fxRate = fxQuote?.regularMarketPrice;
 
-      // Fallback to inverse quote and invert it when the direct pair is unavailable.
+      // Fallback to inverse quote (e.g. GBP=X => often USD/GBP) and invert it.
       if (typeof fxRate !== 'number') {
         fxQuotes = await yf.quote(`${fxBaseCurrency}=X`);
         fxQuote = Array.isArray(fxQuotes) ? fxQuotes[0] : fxQuotes;
@@ -75,79 +76,73 @@ export async function POST(req: NextRequest) {
       priceInUSD = priceInBaseCurrency * fxRate;
     }
 
-    const totalCost = priceInUSD * quantity;
+    const totalProceeds = priceInUSD * quantity;
 
-    if (totalCost < 0.01) {
-      return NextResponse.json(
-        { error: `Too cheap` },
-        { status: 500 }
-      );
-    }
-
-    // Use a transaction to ensure consistency
-    const result = await sql.query('BEGIN');
+    await sql.query('BEGIN');
 
     try {
-      // Get user's current cash balance
-      const userResult = await sql`
-        SELECT cash_balance FROM users WHERE id = ${session.sub}
+      const holdingResult = await sql`
+        SELECT quantity
+        FROM holdings
+        WHERE user_id = ${session.sub} AND ticker = ${ticker}
       `;
 
-      const user = userResult.rows[0];
-      if (!user) {
+      const holding = holdingResult.rows[0];
+      const ownedQuantity = holding ? parseFloat(String(holding.quantity)) : 0;
+
+      if (ownedQuantity < quantity) {
         await sql.query('ROLLBACK');
         return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
-      }
-
-      const cashBalance = parseFloat(user.cash_balance as string);
-
-      // Check if user has enough cash
-      if (cashBalance < totalCost) {
-        await sql.query('ROLLBACK');
-        return NextResponse.json(
-          { error: 'Insufficient funds' },
+          { error: 'Insufficient shares to sell' },
           { status: 400 }
         );
       }
 
-      // Update cash balance
       await sql`
-        UPDATE users 
-        SET cash_balance = cash_balance - ${totalCost}
+        UPDATE users
+        SET cash_balance = cash_balance + ${totalProceeds}
         WHERE id = ${session.sub}
       `;
 
-      // Update or insert holdings
       await sql`
-        INSERT INTO holdings (user_id, ticker, quantity)
-        VALUES (${session.sub}, ${ticker.toUpperCase()}, ${quantity})
-        ON CONFLICT (user_id, ticker)
-        DO UPDATE SET quantity = holdings.quantity + ${quantity}
+        UPDATE holdings
+        SET quantity = quantity - ${quantity}
+        WHERE user_id = ${session.sub} AND ticker = ${ticker}
       `;
 
-      // Commit transaction
+      await sql`
+        DELETE FROM holdings
+        WHERE user_id = ${session.sub} AND ticker = ${ticker} AND quantity <= 0
+      `;
+
+      const userResult = await sql`
+        SELECT cash_balance
+        FROM users
+        WHERE id = ${session.sub}
+      `;
+
+      const newCashBalance = parseFloat(String(userResult.rows[0]?.cash_balance ?? 0));
+
       await sql.query('COMMIT');
 
       return NextResponse.json({
         success: true,
-        message: `Purchased ${quantity} shares of ${ticker}`,
+        message: `Sold ${quantity} shares of ${ticker}`,
         priceInUSD,
         exchangeRateToUSD,
         quoteCurrency: currency,
-        totalCost,
-        newCashBalance: cashBalance - totalCost
+        totalProceeds,
+        newCashBalance,
+        remainingQuantity: Math.max(ownedQuantity - quantity, 0),
       });
     } catch (error) {
       await sql.query('ROLLBACK');
       throw error;
     }
   } catch (error: any) {
-    console.error('Buy error:', error);
+    console.error('Sell error:', error);
     return NextResponse.json(
-      { error: error?.message || 'Failed to purchase' },
+      { error: error?.message || 'Failed to sell shares' },
       { status: 500 }
     );
   }

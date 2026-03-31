@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const result = await sql`
-      SELECT cash_balance FROM users WHERE id = ${session.sub}
+      SELECT cash_balance, username FROM users WHERE id = ${session.sub}
     `;
 
     if (result.rows.length === 0) {
@@ -24,8 +24,23 @@ export async function GET(req: NextRequest) {
     }
 
     const cashBalance = parseFloat(result.rows[0].cash_balance as string);
+    const username = result.rows[0].username as string;
 
-    return NextResponse.json({ cashBalance });
+    const holdingsResult = await sql`
+      SELECT ticker, quantity
+      FROM holdings
+      WHERE user_id = ${session.sub}
+      ORDER BY ticker ASC
+    `;
+
+    const holdings = holdingsResult.rows.map((row) => ({
+      ticker: String(row.ticker),
+      quantity: parseFloat(String(row.quantity)),
+      // Average buy price is not persisted in the current schema.
+      averagePriceUsd: null as number | null,
+    }));
+
+    return NextResponse.json({ cashBalance, username, holdings });
   } catch (error: any) {
     console.error('Balance fetch error:', error);
     return NextResponse.json(
