@@ -25,9 +25,10 @@ export async function POST(req: NextRequest) {
     // Get current price from Yahoo Finance
     const yf = new YahooFinance(); 
     const quotes = await yf.quote(ticker.toUpperCase());
-
     const quote = Array.isArray(quotes) ? quotes[0] : quotes;
-    const currentPrice = quote?.regularMarketPrice;
+
+    let currentPrice = quote?.regularMarketPrice;
+    const currency = quote?.currency || 'USD';
 
     if (!currentPrice) {
       return NextResponse.json(
@@ -36,7 +37,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const totalCost = currentPrice * quantity;
+    // Convert to USD if necessary
+    let priceInUSD = currentPrice;
+    if (currency !== 'USD') {
+      // Handle fractional currencies (e.g., GBp = pence, needs to be converted to GBP)
+      let exchangeCurrency = currency;
+      let priceInBaseCurrency = currentPrice;
+
+      if (currency === 'GBp') {
+        // Convert pence to pounds (divide by 100)
+        priceInBaseCurrency = currentPrice / 100;
+        exchangeCurrency = 'GBP';
+      }
+
+      // Get exchange rate
+      const exchangeTicker = `${exchangeCurrency}=X`; // e.g., GBP=X for GBP to USD
+      try {
+        const exchangeQuotes = await yf.quote(exchangeTicker);
+        const exchangeQuote = Array.isArray(exchangeQuotes) ? exchangeQuotes[0] : exchangeQuotes;
+        const exchangeRate = exchangeQuote?.regularMarketPrice;
+        if (exchangeRate) {
+          priceInUSD = priceInBaseCurrency * exchangeRate;
+        } else {
+          return NextResponse.json(
+            { error: `Unable to fetch exchange rate for ${currency}` },
+            { status: 500 }
+          );
+        }
+      } catch (error) {
+        return NextResponse.json(
+          { error: `Unable to fetch exchange rate for ${currency}` },
+          { status: 500 }
+        );
+      }
+    }
+
+    const totalCost = priceInUSD * quantity;
 
     // Use a transaction to ensure consistency
     const result = await sql.query('BEGIN');
