@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get current quote from Yahoo Finance and convert to USD when needed.
-    const yf = new YahooFinance();
+    const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
     const quotes = await yf.quote(ticker);
     const quote = Array.isArray(quotes) ? quotes[0] : quotes;
     const rawPrice = quote?.regularMarketPrice;

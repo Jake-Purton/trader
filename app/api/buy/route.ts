@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get current price from Yahoo Finance
-    const yf = new YahooFinance(); 
+    const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] }); 
     const quotes = await yf.quote(ticker.toUpperCase());
     const quote = Array.isArray(quotes) ? quotes[0] : quotes;
 

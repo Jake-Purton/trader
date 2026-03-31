@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const yf = new YahooFinance(); 
+    const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] }); 
     const results = await yf.search(query)
 
     let quotes = (results.quotes || []) as any[];

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const yf = new YahooFinance();
+    const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
     const response = await yf.chart(ticker.toUpperCase(), {
       period1: from,
       period2: now,
