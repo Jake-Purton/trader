@@ -26,11 +26,18 @@ export default function Home() {
       
       const json = await res.json();
 
-      // Transform API data → chart format
-      const formatted = json.results?.map((item: any) => ({
-        time: new Date(item.t).toISOString().split('T')[0],
-        price: item.c
-      })) || [];
+      console.log('Yahoo Finance response:', json);
+
+      const quotes = json.result || json.quotes || [];
+      const formatted = quotes.map((item: any) => {
+        // Yahoo Finance returns date as Unix timestamp (seconds)
+        const timestamp = typeof item.date === 'number' ? item.date * 1000 : item.date;
+        const dateStr = new Date(timestamp).toISOString().split('T')[0];
+        return {
+          time: dateStr,
+          price: item.close
+        };
+      }) || [];
 
       setData(formatted);
     } catch (error) {
@@ -41,14 +48,14 @@ export default function Home() {
 
   async function getCurrentPrice() {
     try {
-      const res = await fetch(`/api/stocks?ticker=AAPL`);
+      const res = await fetch(`/api/price?ticker=AAPL`);
       if (!res.ok) {
         console.log('Failed to fetch price');
         return;
       } 
       
       const data = await res.json();
-      const currentPrice = data.results?.at(-1)?.c ?? null;
+      const currentPrice = data.price ?? null;
       setPrice(currentPrice);
     } catch (error) {
       console.error('Error fetching current price:', error);
@@ -68,57 +75,27 @@ export default function Home() {
   }, [range, mounted]);
 
   return (
-    <main
-      style={{
-        maxWidth: 1400,
-        margin: '40px auto',
-        padding: 20,
-        fontFamily: 'Arial, sans-serif',
-        backgroundColor: '#000',
-        minHeight: '100vh',
-        color: '#fff',
-      }}
-    >
-      <h1 style={{ textAlign: 'center', marginBottom: 10, color: '#22c55e' }}>AAPL Chart</h1>
+    <main className="w-full px-5 bg-black min-h-screen text-white">
+      <h1 className="text-center mb-2.5 text-green-500 text-3xl font-bold">AAPL Chart</h1>
 
       {mounted && (
         <>
           {/* Current price */}
-          <div
-            style={{
-              textAlign: 'center',
-              fontSize: 32,
-              fontWeight: 'bold',
-              marginBottom: 20,
-              color: '#22c55e',
-            }}
-          >
+          <div className="text-center text-4xl font-bold mb-5 text-green-500">
             ${currentPrice ?? 'N/A'}
           </div>
 
           {/* Range buttons */}
-          <div style={{ textAlign: 'center', marginBottom: 30 }}>
+          <div className="text-center mb-7.5">
             {['1D', '1W', '1M', '1Y'].map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
-                style={{
-                  margin: '0 8px',
-                  padding: '8px 16px',
-                  background: r === range ? '#22c55e' : '#1f2937',
-                  color: r === range ? '#000' : '#fff',
-                  border: 'none',
-                  borderRadius: 20,
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  if (r !== range) (e.currentTarget.style.background = '#374151');
-                }}
-                onMouseLeave={(e) => {
-                  if (r !== range) (e.currentTarget.style.background = '#1f2937');
-                }}
+                className={`mx-2 px-4 py-2 rounded-full cursor-pointer font-medium transition-colors ${
+                  r === range
+                    ? 'bg-green-500 text-black'
+                    : 'bg-gray-800 text-white hover:bg-gray-700'
+                }`}
               >
                 {r}
               </button>
@@ -126,15 +103,7 @@ export default function Home() {
           </div>
 
           {/* Chart container */}
-          <div
-            style={{
-              padding: 20,
-              background: '#1f2937',
-              borderRadius: 12,
-              boxShadow: '0 4px 12px rgba(34, 197, 94, 0.15)',
-              border: '1px solid #22c55e',
-            }}
-          >
+          <div className="p-5 bg-gray-800 rounded-lg shadow-lg border border-green-500">
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={data}>
                 <XAxis dataKey="time" />

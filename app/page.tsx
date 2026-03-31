@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
   const [username, setUsername] = useState("");
@@ -9,6 +10,8 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [usernameExists, setUsernameExists] = useState<boolean | null>(false);
   const [message, setMessage] = useState("");
+
+  const router = useRouter();
 
   useEffect(() => {
     let isCancelled = false;
@@ -71,16 +74,14 @@ export default function Home() {
       body: JSON.stringify({ username: trimmedUsername, password }),
     });
 
-    const data = (await res.json()) as { token?: string; error?: string };
+    const data = (await res.json()) as { error?: string };
     if (res.ok) {
-      if (data.token) {
-        localStorage.setItem("token", data.token);
-      }
       setMessage(
         mode === "login"
           ? `Success! Logged in as ${trimmedUsername}`
           : `Success! Created account for ${trimmedUsername}`
       );
+      router.push("/dashboard")
     } else {
       setMessage(data.error ?? "Authentication failed");
     }
