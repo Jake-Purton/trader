@@ -8,6 +8,14 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
   const range = searchParams.get('range') || '1M';
+  const ticker = searchParams.get('ticker');
+  
+  if (!ticker) {
+    return NextResponse.json(
+      { error: 'Missing ticker parameter' },
+      { status: 400 }
+    );
+  }
 
   const now = new Date();
   let from = new Date();
@@ -33,7 +41,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const response = await rest.getStocksAggregates({
-        stocksTicker: "AAPL",
+        stocksTicker: ticker,
         multiplier: 1,
         timespan: timespan,
         from: from.toISOString().split('T')[0],
@@ -44,7 +52,12 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(response);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed' }, { status: 500 });
+  } catch (error: any) {
+    console.error('API ERROR:', error);
+
+    return NextResponse.json(
+      { error: error?.message || 'Failed to fetch price' },
+      { status: 500 }
+    );
   }
 }
