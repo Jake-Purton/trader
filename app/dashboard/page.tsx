@@ -1,30 +1,30 @@
-import { redirect } from 'next/navigation';
-import { getSessionFromCookie } from '@/lib/auth';
-import { sql } from '@vercel/postgres';
+"use client";
 
+import Search from "@/components/search";
+import { useEffect, useRef, useState } from 'react';
 
-export default async function Dashboard() {
-    const session = await getSessionFromCookie();
+export default function Dashboard() {
+    const [ticker, setTicker] = useState<string>("");
+    const [balance, setBalance] = useState<number>(0);
+    const hasFetchedBalance = useRef(false);
 
-    if (!session) {
-        redirect('/');
-    }
-    
-    const activeSession = session;
+    useEffect(() => {
+        // Guard avoids duplicate fetches in React Strict Mode during development.
+        if (hasFetchedBalance.current) return;
+        hasFetchedBalance.current = true;
 
-    async function getBalance(): Promise<number> {
-        const res = await sql<{ cash_balance: string }>`
-            SELECT cash_balance
-            FROM users
-            WHERE id = ${activeSession.sub}
-            LIMIT 1
-        `;
+        async function getBalance() {
+            const balanceRes = await fetch('/api/user/balance');
+            const balanceData = await balanceRes.json();
+            const rawBalance = balanceData?.cashBalance;
+            setBalance(rawBalance ? Number(rawBalance) : 0);
+        }
 
-        const rawBalance = res.rows[0]?.cash_balance;
-        return rawBalance ? Number(rawBalance) : 0;
-    }
+        getBalance().catch((err) => {
+            console.error('Failed to fetch balance', err);
+        });
+    }, []);
 
-    const balance = await getBalance();
     const formattedBalance = new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -33,9 +33,11 @@ export default async function Dashboard() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-black">
             <h1 className="text-2xl font-bold mb-4 text-center text-green-500">
-                Dashboard - Welcome {session.username}
+                Dashboard - Welcome {ticker}
             </h1>
             <p>Balance: {formattedBalance}</p>
+
+            <Search setTicker={setTicker} />
         </div>
     );
 }

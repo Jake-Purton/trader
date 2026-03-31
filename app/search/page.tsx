@@ -17,7 +17,6 @@ export default function Search() {
   const [results, setResults] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔁 Debounced search
   useEffect(() => {
     if (!query) {
       setResults([]);
@@ -51,7 +50,6 @@ export default function Search() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-center mb-6 text-green-500 text-3xl font-bold">Search</h1>
 
-        {/* 🔍 Search input */}
         <input
           type="text"
           placeholder="Search stocks, ETFs, crypto..."
@@ -60,7 +58,6 @@ export default function Search() {
           className="w-full p-3 rounded-xl border border-green-500 bg-gray-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
         />
 
-        {/* 🎛️ Filter buttons */}
         <div className="flex gap-2 mt-4 flex-wrap">
           {["ALL", "EQUITY", "ETF", "CRYPTOCURRENCY"].map((t) => (
             <button
@@ -77,7 +74,6 @@ export default function Search() {
           ))}
         </div>
 
-        {/* 📊 Results */}
         <div className="mt-6 space-y-2">
           {loading && <p className="text-green-500">Searching...</p>}
 
